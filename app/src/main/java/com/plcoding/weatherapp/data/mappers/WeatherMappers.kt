@@ -1,0 +1,65 @@
+package com.plcoding.weatherapp.data.mappers
+
+import com.plcoding.weatherapp.data.remote.WeatherDataDto
+import com.plcoding.weatherapp.data.remote.WeatherDto
+import com.plcoding.weatherapp.domain.weather.WeatherData
+import com.plcoding.weatherapp.domain.weather.WeatherInfo
+import com.plcoding.weatherapp.domain.weather.WeatherType
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+private data class IndexWeatherData(
+
+    val index: Int,
+    val data: WeatherData
+)
+
+
+//Here we are mapping our Dto data just to work more comfortable and stop using de list that the Api returns to us
+
+fun WeatherDataDto.toWeatherDataMap(): Map<Int, List<WeatherData>> {
+
+    return time.mapIndexed { index, time ->
+
+        val temperature = temperatures[index]
+        val weatherCode = weatherCodes[index]
+        val windSpeed = windSpeeds[index]
+        val pressure = pressures[index]
+        val humidity = humidities[index]
+
+        IndexWeatherData(
+            index = index,
+
+            WeatherData(
+                time = LocalDateTime.parse(time, DateTimeFormatter.ISO_DATE_TIME),
+                temperatureCelsius = temperature,
+                pressure = pressure,
+                windSpeed = windSpeed,
+                humidity = humidity,
+                weatherType = WeatherType.fromWMO(weatherCode)
+            )
+
+        )
+    }.groupBy {
+        it.index / 24 //This is because our api returns a 24 data time each day so we divide it by 24 just to get the current day we're in
+    }.mapValues {
+        it.value.map { it.data }
+    }
+}
+
+fun WeatherDto.toWeatherInfo(): WeatherInfo {
+
+    val weatherDataMap = weatherData.toWeatherDataMap()
+    val now = LocalDateTime.now()
+    val currentWeatherData = weatherDataMap[0]?.find {
+
+        val hour = if(now.minute < 30) now.hour else now.hour + 1
+        it.time.hour ==hour
+    }
+    return WeatherInfo(
+
+        weatherDataPerDay = weatherDataMap,
+        currentWeatherData = currentWeatherData
+
+    )
+}
